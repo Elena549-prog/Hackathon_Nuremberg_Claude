@@ -9,7 +9,16 @@ const LABEL_W = 96;
 
 const fmt = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 const pct = (m: number) => `${((m - START) / (END - START)) * 100}%`;
-const colorOf = (idx: number) => (idx >= 0 ? `var(--s${idx})` : "var(--other)");
+// Jede Linie hat ihre eigene Farbe: die ersten sechs aus der validierten Palette, alle weiteren per
+// Goldenem Winkel (gut verteilte Farbtoene, Rotbereich ausgespart, da Rot fuer "unbesetzt" reserviert ist).
+// Bei sehr vielen Linien ähneln sich manche Farben, deshalb zeigt jeder Balken seine Linie im Tooltip.
+const colorOf = (idx: number) => {
+  if (idx < 0) return "var(--other)";
+  if (idx < 6) return `var(--s${idx})`;
+  let h = (idx * 137.508 + 20) % 360;
+  if (h > 345 || h < 20) h = (h + 40) % 360;
+  return `hsl(${h.toFixed(0)} 58% var(--lum))`;
+};
 const initials = (n: string) => n.split(" ").map((x) => x[0]).join("").slice(0, 2);
 
 interface Pending { before: Map<string, string>; gaps: Set<string>; hit: string[]; bump: Record<string, number> }
@@ -218,8 +227,8 @@ export default function Dashboard() {
             )}
             {!data && <div className="empty">Plan wird berechnet …</div>}
             <div className="legend">
-              {(data?.lines ?? []).slice(0, 6).map((l) => <span key={l.line}><b style={{ background: colorOf(l.color) }} />Linie {l.line}</span>)}
-              <span><b style={{ background: "var(--other)" }} />sonstige Linien</span>
+              {(data?.lines ?? []).slice(0, 8).map((l) => <span key={l.line}><b style={{ background: colorOf(l.color) }} />Linie {l.line}</span>)}
+              <span>weitere Linien: Farbe im Tooltip und in der Liste rechts</span>
               <span><b style={{ background: "var(--bad)" }} />unbesetzt</span>
               <span>Blass = bereits gefahren</span>
             </div>

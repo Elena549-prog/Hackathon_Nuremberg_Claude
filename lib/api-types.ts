@@ -12,7 +12,7 @@ export interface PlanRequest {
 export interface PlanTrip { id: string; line: string; dep: number; arr: number; locked: boolean }
 export interface PlanDriver { id: string; name: string; trips: PlanTrip[]; driveMin: number }
 export interface PlanGap { id: string; line: string; dep: number; arr: number; head: string; reason: { limit: number; pause: number; busy: number } }
-export interface PlanLine { line: string; trips: number; uncovered: number; factor: number; color: number } // color: Index 0..5, -1 = sonstige
+export interface PlanLine { line: string; trips: number; uncovered: number; factor: number; color: number } // color: Rang der Linie nach Fahrtenzahl, bestimmt die eigene Farbe
 
 export interface PlanResponse {
   date: string;

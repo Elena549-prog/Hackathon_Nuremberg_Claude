@@ -71,7 +71,7 @@ export async function POST(req: Request) {
     for (const g of gaps) if (g.dep >= nowMin) agg.get(g.line)!.uncovered++;
     const lines: PlanLine[] = [...agg.entries()]
       .sort((a, b) => b[1].trips - a[1].trips)
-      .map(([line, e], i) => ({ line, ...e, factor: Math.round(trafficFactor(line, Math.max(nowMin, 0), bump) * 100) / 100, color: i < 6 ? i : -1 }));
+      .map(([line, e], i) => ({ line, ...e, factor: Math.round(trafficFactor(line, Math.max(nowMin, 0), bump) * 100) / 100, color: i }));
 
     const future = dayTrips.filter((t) => t.depMin >= nowMin).length;
     const avgFactor = lines.reduce((s, l) => s + l.factor, 0) / Math.max(1, lines.length);
