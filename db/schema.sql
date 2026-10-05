@@ -161,33 +161,38 @@ create table plan_events (
 -- C) VERKEHR
 -- ============================================================
 
--- Rohdaten: eine Zeile pro gemessener Verspaetung (Cron ruft /api/record auf)
+-- Rohdaten: eine Zeile pro gemessener Verspaetung (Zeitgeber ruft stuendlich /api/record auf).
+-- Die VAG liefert Verspaetungen je Liniennummer ("36"), deshalb line statt route_id.
 create table traffic_delays (
   id             bigserial primary key,
   recorded_at    timestamptz not null default now(),
-  route_id       text not null references routes(id),
+  line           text,
+  route_id       text references routes(id),
   trip_id        text,
   stop_id        text,
   delay_seconds  int  not null
 );
 create index delays_route_time_idx on traffic_delays (route_id, recorded_at);
+create index delays_line_time_idx  on traffic_delays (line, recorded_at);
 
 -- Stau-Faktor je Linie, Wochentag und Stunde (1.00 = Fahrplanzeit, 1.20 = 20 % laenger).
--- Einfache Heuristik: durchschnittliche Verspaetung relativ zur typischen Fahrtdauer der Linie.
+-- Heuristik: mittlere Verspaetung (Median) relativ zur typischen Fahrtdauer der Linie, zwischen 1.0 und 1.5.
 create or replace view traffic_factors with (security_invoker = true) as
 with run as (
-  select route_id, avg(arr_min - dep_min)::numeric as avg_trip_min
-  from trips group by route_id
+  select r.short_name as line, avg(t.arr_min - t.dep_min)::numeric as avg_trip_min
+  from trips t join routes r on r.id = t.route_id
+  group by r.short_name
+), obs as (
+  select line, delay_seconds,
+         extract(isodow from recorded_at at time zone 'Europe/Berlin')::int as weekday,
+         extract(hour   from recorded_at at time zone 'Europe/Berlin')::int as hour
+  from traffic_delays where line is not null
 )
-select d.route_id,
-       extract(isodow from d.recorded_at at time zone 'Europe/Berlin')::int as weekday,
-       extract(hour   from d.recorded_at at time zone 'Europe/Berlin')::int as hour,
-       count(*) as samples,
-       least(2.0, greatest(0.9,
-         1 + (avg(d.delay_seconds) / 60.0) / nullif(r.avg_trip_min, 0))) as factor
-from traffic_delays d
-join run r using (route_id)
-group by d.route_id, weekday, hour, r.avg_trip_min;
+select o.line, o.weekday, o.hour, count(*) as samples,
+       least(1.5, greatest(1.0,
+         1 + (percentile_cont(0.5) within group (order by o.delay_seconds)::numeric / 60.0) / nullif(r.avg_trip_min, 0))) as factor
+from obs o join run r on r.line = o.line
+group by o.line, o.weekday, o.hour, r.avg_trip_min;
 
 -- ============================================================
 -- ZUGRIFF (Row Level Security)

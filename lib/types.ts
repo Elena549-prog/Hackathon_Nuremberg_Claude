@@ -89,7 +89,7 @@ export const DEFAULT_RULES: PlanRules = {
 
 // 1.00 = Fahrplanzeit, 1.20 = 20 % laenger
 export interface TrafficFactor {
-  routeId: string;
+  line: string; // Liniennummer, z. B. "36"
   weekday: number; // 1 = Montag
   hour: number; // 0 bis 23
   factor: number;
