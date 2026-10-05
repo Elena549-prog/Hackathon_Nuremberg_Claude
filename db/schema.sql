@@ -112,6 +112,17 @@ create table driver_absences (
 );
 create index absences_driver_idx on driver_absences (driver_id, date_from, date_to);
 
+-- Fahrer, die an einem Datum aktiv und nicht abwesend sind (Eingabe fuer den Scheduler)
+create or replace function available_drivers(d date)
+returns setof drivers language sql stable as $$
+  select dr.* from drivers dr
+  where dr.active
+    and not exists (
+      select 1 from driver_absences a
+      where a.driver_id = dr.id and d between a.date_from and a.date_to
+    )
+$$;
+
 -- Ein Dienstplan fuer einen Tag. Mehrere Staende pro Tag moeglich (stuendliche Aktualisierung).
 create table plans (
   id          uuid primary key default gen_random_uuid(),

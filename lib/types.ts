@@ -104,6 +104,8 @@ export interface PlanInput {
   trips: Trip[]; // Fahrten, die an dem Tag stattfinden (trips_on_date)
   drivers: Driver[]; // bereits ohne abwesende Fahrer
   traffic: (routeId: string, minute: number) => number; // Stau-Faktor, Fallback 1.0
+  stops?: Record<string, { lat: number; lon: number }>; // optional: Leerfahrt-Zeit zwischen Endhalt und naechstem Start
+  lateReserve?: { fromMin: number; share: number } | null; // Anteil der Fahrer, der erst ab fromMin starten darf (Spaetschicht); null = aus, weggelassen = Standard
   locked: Record<string, string>; // tripId -> driverId (gefahren oder manuell fixiert)
   rules: PlanRules;
 }
