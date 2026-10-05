@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PlanRequest, PlanResponse } from "@/lib/api-types.ts";
+import { filterByLines } from "@/lib/filter.ts";
 
 const START = 240; // 04:00
 const END = 1560; // 02:00 des Folgetags
@@ -93,6 +94,42 @@ function LineCoverage({ data, nowMin, onMove, onLeave }: { data: PlanResponse; n
   );
 }
 
+// Filter nach Buslinien: mehrere Linien waehlbar, Suche nach Liniennummer. Wirkt auf alle Bereiche der Seite.
+function LineFilter({ lines, sel, onChange }: { lines: PlanResponse["lines"]; sel: Set<string>; onChange: (s: Set<string>) => void }) {
+  const [q, setQ] = useState("");
+  const query = q.trim().toLowerCase();
+  const matches = (query ? lines.filter((l) => l.line.toLowerCase().includes(query)) : [...lines].sort((a, b) => b.uncovered - a.uncovered || b.trips - a.trips)).slice(0, 14);
+  const toggle = (line: string) => { const n = new Set(sel); n.has(line) ? n.delete(line) : n.add(line); onChange(n); };
+  const color = new Map(lines.map((l) => [l.line, l.color]));
+
+  return (
+    <section className="block" style={{ paddingTop: 16, paddingBottom: 0 }}>
+      <div className="card">
+        <div className="cb filter">
+          <label htmlFor="line-q" style={{ fontWeight: 600 }}>Nach Buslinie filtern</label>
+          <input id="line-q" className="ctl" style={{ width: 170 }} placeholder="Liniennummer, z. B. 36" value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && matches[0]) { toggle(matches[0].line); setQ(""); } }} />
+          <span className="fine" style={{ margin: 0 }}>{query ? "Treffer:" : "Linien mit den meisten Lücken:"}</span>
+          {matches.map((l) => (
+            <button key={l.line} className="fchip" aria-pressed={sel.has(l.line)} onClick={() => toggle(l.line)}>
+              <i style={{ background: colorOf(color.get(l.line) ?? -1) }} />{l.line}{l.uncovered > 0 && <span className="mono"> {l.uncovered}</span>}
+            </button>
+          ))}
+          {!matches.length && <span className="empty">Keine Linie gefunden.</span>}
+          {sel.size > 0 && (
+            <>
+              <span className="fine" style={{ margin: 0 }}>Aktiv:</span>
+              {[...sel].map((l) => <button key={l} className="fchip" aria-pressed="true" onClick={() => toggle(l)} title="Entfernen">Linie {l} ×</button>)}
+              <button className="btn ghost" onClick={() => onChange(new Set())}>Filter zurücksetzen</button>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 interface Pending { before: Map<string, string>; gaps: Set<string>; hit: string[]; bump: Record<string, number> }
 
 export default function Dashboard() {
@@ -104,7 +141,9 @@ export default function Dashboard() {
   const [trafficMode, setTrafficMode] = useState<"live" | "simulated">("live");
   const [refresh, setRefresh] = useState(0); // erhoeht sich bei "Heute, jetzt": holt Live-Daten erneut
   const [locked, setLocked] = useState<Record<string, string>>({});
-  const [data, setData] = useState<PlanResponse | null>(null);
+  const [rawData, setData] = useState<PlanResponse | null>(null);
+  const [sel, setSel] = useState<Set<string>>(new Set()); // Linienfilter
+  const data = useMemo(() => (rawData ? filterByLines(rawData, sel) : null), [rawData, sel]); // gefilterte Sicht fuer die Anzeige
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selGap, setSelGap] = useState<string | null>(null);
@@ -139,18 +178,18 @@ export default function Dashboard() {
   // Nach "Aktualisieren": Aenderungen gegenueber dem vorherigen Plan ins Protokoll schreiben
   useEffect(() => {
     const p = pending.current;
-    if (!p || !data || loading || data.nowMin !== nowMin) return;
+    if (!p || !rawData || loading || rawData.nowMin !== nowMin) return;
     pending.current = null;
     let changed = 0;
-    for (const d of data.drivers) for (const t of d.trips) if (t.dep >= nowMin && p.before.get(t.id) !== d.id) changed++;
-    const newGaps = data.gaps.filter((g) => g.dep >= nowMin && !p.gaps.has(g.id)).length;
-    const tr = data.traffic;
+    for (const d of rawData.drivers) for (const t of d.trips) if (t.dep >= nowMin && p.before.get(t.id) !== d.id) changed++;
+    const newGaps = rawData.gaps.filter((g) => g.dep >= nowMin && !p.gaps.has(g.id)).length;
+    const tr = rawData.traffic;
     const lage = tr.used === "live"
       ? `Live-Verkehr (${tr.liveLines} Linien, Stand ${new Date(tr.fetchedAt!).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })})`
       : p.hit.map((l) => `Linie ${l} +${Math.round(p.bump[l] * 100)} %`).join(", ");
     addLog(`Plan aktualisiert: ${lage}. ${changed} Fahrten neu zugeordnet, ${newGaps} neue Lücken.`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, loading]);
+  }, [rawData, loading]);
 
   const started = useRef(false);
   useEffect(() => {
@@ -161,20 +200,20 @@ export default function Dashboard() {
   }, []);
 
   function advance() {
-    if (!data) return;
+    if (!rawData) return;
     const newNow = Math.min(nowMin + 60, 1380);
     const before = new Map<string, string>();
     const nl = { ...locked };
-    for (const d of data.drivers) for (const t of d.trips) { before.set(t.id, d.id); if (t.dep < newNow) nl[t.id] = d.id; }
+    for (const d of rawData.drivers) for (const t of d.trips) { before.set(t.id, d.id); if (t.dep < newNow) nl[t.id] = d.id; }
     // Live: die Verkehrslage kommt von der VAG. Simuliert: zufaellige Stoerungen auf zwei Linien.
     const nb: Record<string, number> = {};
     let hit: string[] = [];
     if (trafficMode === "simulated") {
       for (const [k, v] of Object.entries(bump)) nb[k] = v * 0.5;
-      hit = [...data.lines.slice(0, 12)].sort(() => Math.random() - 0.5).slice(0, 2).map((l) => l.line);
+      hit = [...rawData.lines.slice(0, 12)].sort(() => Math.random() - 0.5).slice(0, 2).map((l) => l.line);
       hit.forEach((l) => (nb[l] = 0.08 + Math.random() * 0.22));
     }
-    pending.current = { before, gaps: new Set(data.gaps.map((g) => g.id)), hit, bump: nb };
+    pending.current = { before, gaps: new Set(rawData.gaps.map((g) => g.id)), hit, bump: nb };
     setLocked(nl);
     setBump(nb);
     setNowMin(newNow);
@@ -235,7 +274,7 @@ export default function Dashboard() {
 
       <section className="kpis">
         <div className="kpi">
-          <div className="l">Deckungsgrad, Rest des Tages</div>
+          <div className="l">Deckungsgrad, Rest des Tages{sel.size ? ` (${sel.size} ${sel.size === 1 ? "Linie" : "Linien"} gewählt)` : ""}</div>
           <div className="v">{data ? `${cov} %` : "-"}</div>
           <div className="bar-cov" style={{ color: status.c }}><i style={{ width: `${cov}%` }} /></div>
           <div className="st"><u style={{ background: status.c }}>{status.g}</u>{status.t}</div>
@@ -256,6 +295,8 @@ export default function Dashboard() {
           <div className="s">{isLive ? `Live (VAG), Stand ${fmtClock(data!.traffic.fetchedAt)}` : "simuliert, Durchschnitt aller Linien"}</div>
         </div>
       </section>
+
+      {rawData && <LineFilter lines={rawData.lines} sel={sel} onChange={setSel} />}
 
       <main className={`grid${loading ? " loading" : ""}`}>
         <div className="card">
