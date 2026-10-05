@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { PlanRequest, PlanResponse } from "@/lib/api-types.ts";
 import { filterByLines } from "@/lib/filter.ts";
 import { rosterCsv } from "@/lib/roster.ts";
+import { IS_ARTIFACT, copyText } from "@/lib/env.ts";
 import DriverDrawer from "@/components/DriverDrawer.tsx";
 
 const START = 240; // 04:00
@@ -140,7 +141,7 @@ export default function Dashboard() {
   const [poolSize, setPoolSize] = useState(400);
   const [sick, setSick] = useState<Set<string>>(new Set());
   const [bump, setBump] = useState<Record<string, number>>({});
-  const [trafficMode, setTrafficMode] = useState<"live" | "simulated">("live");
+  const [trafficMode, setTrafficMode] = useState<"live" | "simulated">(IS_ARTIFACT ? "simulated" : "live");
   const [refresh, setRefresh] = useState(0); // erhoeht sich bei "Heute, jetzt": holt Live-Daten erneut
   const [locked, setLocked] = useState<Record<string, string>>({});
   const [rawData, setData] = useState<PlanResponse | null>(null);
@@ -260,9 +261,16 @@ export default function Dashboard() {
     if (dr) setSelDriver(dr.dataset.d!);
   };
 
-  function downloadAll() {
+  async function downloadAll() {
     if (!rawData) return;
-    const blob = new Blob([rosterCsv(rawData.date, rawData.drivers)], { type: "text/csv;charset=utf-8" });
+    const csv = rosterCsv(rawData.date, rawData.drivers);
+    if (IS_ARTIFACT) {
+      // Downloads sind in der Browser-Version gesperrt: Tabelle in die Zwischenablage kopieren (zum Einfuegen in Excel)
+      const ok = await copyText(csv.replace("\ufeff", ""));
+      addLog(ok ? `Alle Dienstpläne kopiert (${rawData.drivers.length} Fahrer). In Excel oder Numbers einfügen.` : "Kopieren nicht möglich in dieser Ansicht.");
+      return;
+    }
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `dienstplaene_${rawData.date}.csv`;
@@ -277,9 +285,9 @@ export default function Dashboard() {
       <header className="top">
         <div className="brand"><div className="mark" />Busplaner Nürnberg</div>
         <input className="ctl" type="date" value={date} aria-label="Datum" onChange={(e) => { setDate(e.target.value); setLocked({}); setSelGap(null); }} />
-        <button className="btn ghost" onClick={nowBerlin}>Heute, jetzt</button>
+        {!IS_ARTIFACT && <button className="btn ghost" onClick={nowBerlin}>Heute, jetzt</button>}
         <span className="tabs" role="group" aria-label="Verkehrslage">
-          <button aria-pressed={trafficMode === "live"} onClick={() => setTrafficMode("live")}>Live (VAG)</button>
+          {!IS_ARTIFACT && <button aria-pressed={trafficMode === "live"} onClick={() => setTrafficMode("live")}>Live (VAG)</button>}
           <button aria-pressed={trafficMode === "simulated"} onClick={() => setTrafficMode("simulated")}>Simuliert</button>
         </span>
         <span className="sp" />
@@ -338,7 +346,7 @@ export default function Dashboard() {
           <div className="ch">
             <h2>Dienstplan <span className="mono" style={{ fontWeight: 400, marginLeft: 6 }}>{data?.date}</span></h2>
             <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button className="btn ghost" style={{ height: 28, padding: "0 10px", fontSize: 12 }} onClick={downloadAll} disabled={!rawData}>Alle Dienstpläne (CSV)</button>
+            <button className="btn ghost" style={{ height: 28, padding: "0 10px", fontSize: 12 }} onClick={downloadAll} disabled={!rawData}>{IS_ARTIFACT ? "Alle Dienstpläne kopieren" : "Alle Dienstpläne (CSV)"}</button>
             <span className="tabs" role="group" aria-label="Ansicht">
               <button aria-pressed={view === "chart"} onClick={() => setView("chart")}>Zeitleiste</button>
               <button aria-pressed={view === "table"} onClick={() => setView("table")}>Tabelle</button>

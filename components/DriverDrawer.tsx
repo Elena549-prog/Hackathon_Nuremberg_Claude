@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PlanDriver } from "@/lib/api-types.ts";
 import { buildRoster, fmtDur, fmtMin, rosterCsv } from "@/lib/roster.ts";
+import { IS_ARTIFACT, copyText } from "@/lib/env.ts";
 
 interface Props {
   driver: PlanDriver | null; // null = Fahrer hat an diesem Tag keine Fahrt
@@ -18,6 +19,7 @@ interface Props {
 const weekday = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
 
 export default function DriverDrawer({ driver, name, date, nowMin, absent, lineColor, onClose, onToggleSick }: Props) {
+  const [copied, setCopied] = useState(false);
   const roster = useMemo(() => buildRoster(driver ?? { trips: [] }), [driver]);
 
   useEffect(() => {
@@ -25,6 +27,12 @@ export default function DriverDrawer({ driver, name, date, nowMin, absent, lineC
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  async function copyCsv() {
+    const ok = await copyText(rosterCsv(date, [{ name, trips: driver?.trips ?? [] }]).replace("\ufeff", ""));
+    setCopied(ok);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   function download() {
     const blob = new Blob([rosterCsv(date, [{ name, trips: driver?.trips ?? [] }])], { type: "text/csv;charset=utf-8" });
@@ -97,8 +105,14 @@ export default function DriverDrawer({ driver, name, date, nowMin, absent, lineC
         )}
 
         <div className="dactions no-print">
-          <button className="btn" onClick={download} disabled={!roster.tripCount}>CSV herunterladen</button>
-          <button className="btn ghost" onClick={() => window.print()} disabled={!roster.tripCount}>Drucken oder als PDF</button>
+          {IS_ARTIFACT ? (
+            <button className="btn" onClick={copyCsv} disabled={!roster.tripCount}>{copied ? "Kopiert" : "Tabelle kopieren"}</button>
+          ) : (
+            <>
+              <button className="btn" onClick={download} disabled={!roster.tripCount}>CSV herunterladen</button>
+              <button className="btn ghost" onClick={() => window.print()} disabled={!roster.tripCount}>Drucken oder als PDF</button>
+            </>
+          )}
           <button className="btn ghost" onClick={() => onToggleSick(!absent)}>{absent ? "Wieder verfügbar" : "Krank melden"}</button>
         </div>
       </aside>
