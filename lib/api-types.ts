@@ -10,7 +10,7 @@ export interface PlanRequest {
   traffic?: "live" | "simulated"; // Standard: live (VAG), mit Rueckfall auf simuliert
 }
 
-export interface PlanTrip { id: string; line: string; dep: number; arr: number; locked: boolean }
+export interface PlanTrip { id: string; line: string; dep: number; arr: number; locked: boolean; from: string; to: string } // from/to: Haltestellennamen
 export interface PlanDriver { id: string; name: string; trips: PlanTrip[]; driveMin: number }
 export interface PlanGap { id: string; line: string; dep: number; arr: number; head: string; reason: { limit: number; pause: number; busy: number } }
 export interface PlanLine {

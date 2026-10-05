@@ -101,6 +101,37 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; h
 .row.gaprow .n { color:var(--bad); font-weight:600; }
 .now { position:absolute; top:0; bottom:0; width:1px; background:var(--accent); pointer-events:none; z-index:1; }
 .now::before { content:"Jetzt"; position:absolute; top:20px; left:5px; font-size:10px; font-weight:600; color:var(--accent); font-family:var(--mono); }
+/* Dienstplan pro Fahrer: Seitenfenster */
+.scrim { position:fixed; inset:0; background:rgba(0,0,0,.32); z-index:20; }
+.drawer { position:fixed; top:0; right:0; bottom:0; width:min(480px,100vw); background:var(--panel); border-left:1px solid var(--line); box-shadow:-12px 0 40px -16px rgba(0,0,0,.4); z-index:21; overflow:auto; padding:20px; }
+.dh { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px; }
+.dh h2 { margin:2px 0; font-size:22px; letter-spacing:-.02em; }
+.dt { font-size:12px; color:var(--muted); }
+.muted-s { font-size:13px; color:var(--muted); }
+.notice { padding:8px 12px; border:1px solid var(--bad); border-radius:var(--r-ctl); background:var(--bad-soft); margin-bottom:12px; font-size:13px; }
+.dsum { display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line2); border:1px solid var(--line2); border-radius:var(--r-ctl); overflow:hidden; margin-bottom:14px; }
+.dsum > div { background:var(--panel); padding:9px 12px; }
+.dsum span { display:block; font-size:11.5px; color:var(--muted); }
+.dsum b { font-weight:600; }
+.checks { list-style:none; margin:0 0 14px; padding:0; }
+.checks li { display:flex; gap:10px; align-items:flex-start; padding:5px 0; font-size:13px; }
+.checks u { text-decoration:none; flex:none; width:16px; height:16px; border-radius:50%; display:inline-grid; place-items:center; font-size:10px; font-weight:700; margin-top:1px; }
+table.roster td { padding:5px 8px; }
+table.roster tr.past { opacity:.5; }
+table.roster tr.gaprow-r td { color:var(--muted); font-size:12px; background:var(--line2); }
+table.roster tr.brk td { background:color-mix(in srgb, var(--accent) 12%, transparent); color:var(--text); font-weight:500; }
+.ldot { display:inline-block; width:8px; height:8px; border-radius:3px; margin-right:6px; }
+.dactions { display:flex; gap:8px; flex-wrap:wrap; margin-top:16px; position:sticky; bottom:-20px; background:var(--panel); padding:12px 0 4px; border-top:1px solid var(--line2); }
+.linkbtn { background:none; border:0; padding:0; text-align:left; cursor:pointer; color:inherit; font:inherit; }
+.linkbtn:hover { text-decoration:underline; }
+.row .n.clickable { cursor:pointer; }
+.row .n.clickable:hover { color:var(--text); text-decoration:underline; }
+@media print {
+  body > *:not(.drawer) { display:none !important; }
+  .drawer { position:static; width:auto; border:0; box-shadow:none; overflow:visible; padding:0; }
+  .no-print { display:none !important; }
+  body { background:#fff; color:#000; }
+}
 .filter { display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; }
 .fchip { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); background:var(--panel); border-radius:99px; padding:3px 11px; cursor:pointer; font-size:12.5px; transition:border-color .15s; }
 .fchip:hover { border-color:var(--faint); }

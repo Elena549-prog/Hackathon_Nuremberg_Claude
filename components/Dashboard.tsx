@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PlanRequest, PlanResponse } from "@/lib/api-types.ts";
 import { filterByLines } from "@/lib/filter.ts";
+import { rosterCsv } from "@/lib/roster.ts";
+import DriverDrawer from "@/components/DriverDrawer.tsx";
 
 const START = 240; // 04:00
 const END = 1560; // 02:00 des Folgetags
@@ -147,6 +149,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selGap, setSelGap] = useState<string | null>(null);
+  const [selDriver, setSelDriver] = useState<string | null>(null); // Dienstplan pro Fahrer (Seitenfenster)
   const [view, setView] = useState<"chart" | "table">("chart");
   const [log, setLog] = useState<{ t: number; msg: string }[]>([]);
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
@@ -252,8 +255,22 @@ export default function Dashboard() {
   };
   const onClick = (e: React.MouseEvent) => {
     const el = (e.target as HTMLElement).closest("[data-g]") as HTMLElement | null;
-    if (el) setSelGap(el.dataset.g!);
+    if (el) { setSelGap(el.dataset.g!); return; }
+    const dr = (e.target as HTMLElement).closest("[data-d]") as HTMLElement | null;
+    if (dr) setSelDriver(dr.dataset.d!);
   };
+
+  function downloadAll() {
+    if (!rawData) return;
+    const blob = new Blob([rosterCsv(rawData.date, rawData.drivers)], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `dienstplaene_${rawData.date}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    addLog(`Alle Dienstpläne als CSV exportiert (${rawData.drivers.length} Fahrer).`);
+  }
+  const colorByLine = useMemo(() => new Map((rawData?.lines ?? []).map((l) => [l.line, l.color])), [rawData]);
 
   return (
     <>
@@ -307,7 +324,7 @@ export default function Dashboard() {
             <div className="drivers">
               {(data?.roster ?? []).map((d) => (
                 <div key={d.id} className={`drow${d.absent ? " sick" : ""}`}>
-                  <span className="nm"><span className="av">{initials(d.name)}</span><span>{d.name}</span></span>
+                  <span className="nm"><span className="av">{initials(d.name)}</span><button className="linkbtn" onClick={() => setSelDriver(d.id)} title="Dienstplan öffnen">{d.name}</button></span>
                   <label className="sw" title="krank"><input type="checkbox" checked={d.absent} aria-label={`${d.name} krank`} onChange={(e) => toggleSick(d.id, d.name, e.target.checked)} /><i /></label>
                 </div>
               ))}
@@ -320,9 +337,12 @@ export default function Dashboard() {
         <div className="card">
           <div className="ch">
             <h2>Dienstplan <span className="mono" style={{ fontWeight: 400, marginLeft: 6 }}>{data?.date}</span></h2>
+            <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button className="btn ghost" style={{ height: 28, padding: "0 10px", fontSize: 12 }} onClick={downloadAll} disabled={!rawData}>Alle Dienstpläne (CSV)</button>
             <span className="tabs" role="group" aria-label="Ansicht">
               <button aria-pressed={view === "chart"} onClick={() => setView("chart")}>Zeitleiste</button>
               <button aria-pressed={view === "table"} onClick={() => setView("table")}>Tabelle</button>
+            </span>
             </span>
           </div>
           <div className="cb">
@@ -333,7 +353,7 @@ export default function Dashboard() {
                   <div className="now" style={{ left: nowLeft }} />
                   {data.drivers.map((d) => (
                     <div className="row" key={d.id}>
-                      <div className="n">{d.name}</div>
+                      <div className="n clickable" data-d={d.id} title="Dienstplan öffnen">{d.name}</div>
                       <div className="track">
                         {d.trips.map((t) => (
                           <div key={t.id} className={`bar${t.locked || t.dep < nowMin ? " locked" : ""}`}
@@ -429,6 +449,19 @@ export default function Dashboard() {
           <div className="cb">{log.map((e, i) => <div className="e" key={i}><span>{fmt(e.t)}</span><span>{e.msg}</span></div>)}</div>
         </div>
       </section>
+
+      {rawData && selDriver && (
+        <DriverDrawer
+          driver={rawData.drivers.find((d) => d.id === selDriver) ?? null}
+          name={rawData.roster.find((r) => r.id === selDriver)?.name ?? rawData.drivers.find((d) => d.id === selDriver)?.name ?? ""}
+          date={rawData.date}
+          nowMin={nowMin}
+          absent={rawData.roster.find((r) => r.id === selDriver)?.absent ?? false}
+          lineColor={(l) => colorOf(colorByLine.get(l) ?? -1)}
+          onClose={() => setSelDriver(null)}
+          onToggleSick={(on) => { const r = rawData.roster.find((x) => x.id === selDriver); if (r) toggleSick(r.id, r.name, on); }}
+        />
+      )}
 
       {tip && (
         <div className="tip" style={{ left: tip.x, top: tip.y }}>

@@ -82,7 +82,8 @@ export async function POST(req: Request) {
     for (const a of plan.assignments) {
       let d = byDriver.get(a.driverId);
       if (!d) { d = { id: a.driverId, name: names.get(a.driverId) ?? a.driverId, trips: [], driveMin: 0 }; byDriver.set(a.driverId, d); }
-      d.trips.push({ id: a.tripId, line: short.get(tripById.get(a.tripId)!.routeId) ?? "?", dep: a.depMin, arr: a.arrMin, locked: a.locked });
+      const tr = tripById.get(a.tripId)!;
+      d.trips.push({ id: a.tripId, line: short.get(tr.routeId) ?? "?", dep: a.depMin, arr: a.arrMin, locked: a.locked, from: stops[tr.fromStop]?.name ?? "", to: stops[tr.toStop]?.name ?? "" });
       d.driveMin += a.arrMin - a.depMin;
     }
     const drivers = [...byDriver.values()];
