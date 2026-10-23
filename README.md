@@ -1,92 +1,96 @@
 # Busplaner Nürnberg
 
-Dienstplanung für Busfahrer, die knapp sind. Aus dem echten Fahrplan, den gesetzlichen Lenk- und Ruhezeiten und der aktuellen Verkehrslage berechnet die App in wenigen Sekunden, welcher Fahrer welche Fahrt übernimmt. Fällt ein Fahrer aus, zeigt sie sofort, welche Fahrten unbesetzt bleiben.
+🏆 **Winner of the Claude Impact Lab Nuremberg (October 2026)**, track "Express buses despite the driver shortage".
 
-Entstanden beim Claude Impact Lab in Nürnberg, Track "Express-Busse trotz Fahrermangel".
+Shift planning for bus companies that are short of drivers. From the real timetable, the legal driving and rest-time rules and the current traffic situation, the app works out in a few seconds which driver takes which trip. When a driver calls in sick, it shows immediately which trips will go unstaffed.
 
-**Live ansehen:** [Artifact](https://claude.ai/artifact/MRHHYTDEGgpuXpwL2BUjRH). Läuft komplett im Browser (Beispielfahrer, simulierter Stau). Der Link ist privat, bis das Artifact freigegeben wird.
+*[Deutsche Version](README.de.md)*
 
-![User Journey](User_Journey.png)
+![Busplaner dashboard: coverage, unstaffed trips, driver timeline and line status](docs/dashboard.png)
 
-## Was die App kann
+**Live demo:** [Claude artifact](https://claude.ai/artifact/MRHHYTDEGgpuXpwL2BUjRH). Runs entirely in the browser with sample drivers and simulated traffic. The link stays private until the artifact is shared.
 
-- **Tagesplan** für alle Nürnberger Stadtbuslinien: rund 5.200 Fahrten an einem Werktag, 117 Linien im Datensatz.
-- **Fahrer anpassen:** Fahrerzahl per Regler ändern, einzelne Fahrer krank melden. Der Plan rechnet sofort neu, Lücken werden rot angezeigt, mit Grund (Lenkzeit, Pause, im Einsatz).
-- **Dienstplan pro Fahrer:** Schicht, Fahrten mit Strecke, Pausen und Regel-Check, als CSV exportierbar.
-- **Abdeckung je Linie:** ein Gantt-Diagramm mit Linien auf der Y-Achse und der Tageszeit auf der X-Achse, das zeigt, wann welche Linie besetzt ist.
-- **Filter nach Buslinie** für alle Ansichten.
-- **Verkehrslage:** Live-Verspätungen der VAG fließen in die Fahrzeiten ein, der Zuschlag klingt über zwei Stunden ab. Alternativ simulierte Störungen für Demos.
-- **Stündliche Aktualisierung:** Gefahrene Fahrten bleiben fix, der Rest des Tages wird neu geplant.
+![User journey](User_Journey.png)
 
-## Datenquellen
+## What the app does
 
-| Daten | Quelle |
+- **Daily plan** for all Nuremberg city bus lines: around 5,200 trips on a weekday, 117 lines in the dataset.
+- **Adjust the driver pool:** change the number of drivers with a slider or mark individual drivers as sick. The plan recalculates instantly, and gaps are shown in red with the reason (driving time, break, already on duty).
+- **Roster per driver:** shift, trips with route, breaks and a rule check, exportable as CSV.
+- **Coverage per line:** a Gantt chart with lines on the y-axis and time of day on the x-axis, showing when each line is staffed.
+- **Filter by bus line** across all views.
+- **Traffic:** live delays from VAG feed into travel times, with the surcharge fading out over two hours. Simulated disruptions are available for demos.
+- **Hourly refresh:** trips already driven stay fixed, and the rest of the day is replanned.
+
+## Data sources
+
+| Data | Source |
 |---|---|
-| Linien, Fahrten, Haltestellen | VGN-Fahrplandaten (GTFS), gefiltert auf Nürnberger VAG-Stadtbusse, siehe `scripts/extract_vag_buses.py` |
-| Live-Verspätungen | VAG-Echtzeitschnittstelle (PULS), 18 Stationen decken alle Linien ab, siehe `lib/vag-live.ts` |
-| Fahrer, Abwesenheiten, Verspätungshistorie | Supabase (Postgres), Schema in `db/schema.sql` |
+| Lines, trips, stops | VGN timetable data (GTFS), filtered to Nuremberg VAG city buses, see `scripts/extract_vag_buses.py` |
+| Live delays | VAG real-time interface (PULS), 18 stations cover all lines, see `lib/vag-live.ts` |
+| Drivers, absences, delay history | Supabase (Postgres), schema in `db/schema.sql` |
 
-Die Fahrer sind **synthetisch** (400 erfundene Personen). Die Fahrplandaten sind echt.
+The drivers are **synthetic** (400 invented people). The timetable data is real.
 
-## Wie der Scheduler arbeitet
+## How the scheduler works
 
-`lib/scheduler.ts` ist eine reine Funktion: Fahrten, Fahrer und Stau-Faktoren hinein, Plan heraus. Eine Greedy-Heuristik sortiert die Fahrten nach Abfahrt und gibt jede dem am besten passenden Fahrer, wenn
+`lib/scheduler.ts` is a pure function: trips, drivers and traffic factors go in, a plan comes out. A greedy heuristic sorts trips by departure and gives each one to the best-fitting driver, provided that
 
-- er den Startpunkt rechtzeitig erreicht (Wendezeit plus Leerfahrt),
-- seine Lenkzeit höchstens 9 Stunden beträgt,
-- nach 4,5 Stunden Lenkzeit eine Pause von 45 Minuten möglich ist,
-- die Schicht höchstens 13 Stunden dauert.
+- they can reach the starting point in time (turnaround plus empty run),
+- their driving time stays at or below 9 hours,
+- a 45-minute break is possible after 4.5 hours of driving,
+- the shift lasts no more than 13 hours.
 
-Ein Teil der Fahrer startet erst ab 14 Uhr (Spätschicht-Reserve), sonst fehlen abends alle. Findet sich niemand, bleibt die Fahrt unbesetzt und wird mit Grund gemeldet.
+Some drivers only start from 2 pm (late-shift reserve), otherwise evening trips would go uncovered. If nobody fits, the trip stays unstaffed and is reported with the reason.
 
-Das ist ein regelbasierter Algorithmus und keine KI. Er ist schnell und nachvollziehbar, findet aber nicht immer die beste Lösung.
+This is a rule-based algorithm, not AI. It is fast and explainable, but it does not always find the optimal solution.
 
-## Starten
+## Run it
 
-Voraussetzung: Node.js 24 oder neuer.
+Requires Node.js 24 or newer.
 
 ```bash
 npm install
 npm run dev        # http://localhost:3000
-npm test           # alle Tests
+npm test           # all tests
 ```
 
-Ohne Supabase-Zugang läuft die App mit Beispielfahrern. Für die echten Fahrer aus der Datenbank eine Datei `.env.local` anlegen (Vorlage: `.env.local.example`):
+Without Supabase access, the app runs with sample drivers. To use the real drivers from the database, create a `.env.local` file (template: `.env.local.example`):
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=...
-SUPABASE_SERVICE_ROLE_KEY=...     # nur serverseitig, niemals committen
+SUPABASE_SERVICE_ROLE_KEY=...     # server-side only, never commit
 ```
 
-Verspätungen aufzeichnen: `/api/record` stündlich aufrufen (zum Beispiel über einen externen Zeitgeber). Daraus lernt die Ansicht `traffic_factors` die typische Grundlast je Linie, Wochentag und Stunde.
+Recording delays: call `/api/record` every hour (for example from an external scheduler). From this, the `traffic_factors` view learns the typical baseline per line, weekday and hour.
 
-Eigenständige Browser-Version (das Artifact) neu bauen:
+Rebuild the standalone browser version (the artifact):
 
 ```bash
-npm run build:artifact     # erzeugt dist/busplaner-artifact.html
+npm run build:artifact     # creates dist/busplaner-artifact.html
 ```
 
-## Aufbau
+## Structure
 
 ```
-app/api/plan        Plan berechnen (Server)
-app/api/traffic     aktuelle Verspätungen je Linie
-app/api/record      Verspätungen in Supabase speichern
-components/         Oberfläche (Dashboard, Dienstplan pro Fahrer)
-lib/scheduler.ts    Planungslogik
-lib/plan-service.ts gemeinsame Berechnung für Server und Browser
-lib/traffic.ts      Stau-Faktoren (Live, Historie, Simulation)
-lib/vag-live.ts     Abruf der VAG-Verspätungen
-data/               kompakte Bus-Daten (JSON)
-db/schema.sql       Datenmodell für Supabase
-artifact/           eigenständige Browser-Version
-tests/              Tests für Scheduler, Verkehr, Filter, Dienstplan
+app/api/plan        calculate the plan (server)
+app/api/traffic     current delays per line
+app/api/record      store delays in Supabase
+components/         interface (dashboard, roster per driver)
+lib/scheduler.ts    planning logic
+lib/plan-service.ts shared calculation for server and browser
+lib/traffic.ts      traffic factors (live, history, simulation)
+lib/vag-live.ts     fetching VAG delays
+data/               compact bus data (JSON)
+db/schema.sql       data model for Supabase
+artifact/           standalone browser version
+tests/              tests for scheduler, traffic, filters, roster
 ```
 
-## Grenzen
+## Limitations
 
-- Die Verspätung an einer Haltestelle ist nur ein Näherungswert für den Stau auf der ganzen Strecke.
-- Die Schichten sind regelkonform, aber nicht kompakt: Fahrer können lange Wartezeiten und Linienwechsel haben.
-- Beim Aktualisieren verschieben sich viele Zuordnungen. Der Plan ist noch nicht stabil.
-- Die OpenStreetMap-Karte ist noch nicht eingebaut.
-- Krankmeldungen gelten nur in der laufenden Sitzung und werden noch nicht in Supabase gespeichert.
+- The delay at one stop is only an approximation of congestion along the whole route.
+- Shifts follow the rules but are not compact: drivers can have long waits and line changes.
+- Many assignments shift when the plan is refreshed. The plan is not yet stable.
+- The OpenStreetMap view is not built in yet.
+- Sick reports only apply to the current session and are not yet saved to Supabase.
